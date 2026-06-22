@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: demo
+
+  # MySQL (docker-compose: localhost:3306 / taskdb / taskuser / taskpass)
+  datasource:
+    url: jdbc:mysql://localhost:3306/taskdb?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: taskuser
+    password: taskpass
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # Don't abort app/context startup if MySQL isn't reachable yet — pool fills lazily.
+      # (Resilience: app can boot before DB is ready; also lets context-load tests pass without infra.)
+      initialization-fail-timeout: -1
+
+  # Redis (docker-compose: localhost:6379)
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+# RocketMQ (native client — read by RocketMQConfig / @Value)
+rocketmq:
+  name-server: localhost:9876
+  producer:
+    group: notification-producer-group
+    send-timeout-ms: 3000   # cap publish latency so a dead broker can't hang a request thread
+    retries: 2
+  topic: notification-topic
+
+# Redis cache tuning
+notification:
+  cache:
+    recent-size: 10
+    ttl-seconds: 3600
