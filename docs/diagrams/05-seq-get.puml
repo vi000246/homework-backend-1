@@ -1,0 +1,45 @@
+@startuml seq-get
+title GET /notifications/{id} — 依 ID 查詢（旁路快取 Cache-Aside）
+
+skinparam shadowing false
+skinparam defaultFontName "PingFang TC"
+autonumber
+
+actor "用戶端" as Client
+participant "Controller" as C
+participant "Service" as S
+participant "CacheService" as Cache
+database "Redis" as Redis
+participant "Repository" as R
+database "MySQL" as DB
+
+Client -> C : GET /notifications/{id}
+C -> S : getById(id)
+S -> Cache : getById(id)
+Cache -> Redis : GET notification:{id}
+alt 快取命中
+  Redis --> Cache : notification
+  Cache --> S : Optional(notification)
+  S --> C : notification
+  C --> Client : 200 OK
+else 快取未命中（或 Redis 壞掉 → 降級為未命中）
+  Redis --> Cache : null
+  Cache --> S : Optional.empty
+  S -> R : findById(id)
+  R -> DB : SELECT ... WHERE id = ?
+  alt 資料庫有資料
+    DB --> R : notification
+    R --> S : Optional(notification)
+    S -> Cache : putById(n)（回寫快取）
+    Cache -> Redis : SET notification:{id}
+    S --> C : notification
+    C --> Client : 200 OK
+  else 找不到
+    DB --> R : 空
+    R --> S : Optional.empty
+    S -> S : 拋 NotFoundException
+    S --> C : 例外
+    C --> Client : 404 NOT_FOUND
+  end
+end
+@enduml

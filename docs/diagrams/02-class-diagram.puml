@@ -1,0 +1,107 @@
+@startuml class-diagram
+title 通知服務 — 類別圖（各層職責）
+
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam defaultFontName "PingFang TC"
+
+enum NotificationType <<列舉：通知類型>> {
+  EMAIL("email")
+  SMS("sms")
+  +getValue() : String
+  +{static} fromValue(String) : NotificationType
+}
+
+class Notification <<領域模型>> {
+  -Long id
+  -NotificationType type
+  -String recipient
+  -String subject
+  -String content
+  -Instant createdAt
+  -Instant updatedAt
+}
+
+class CreateNotificationRequest <<DTO：建立請求>> {
+  +@NotBlank String type
+  +@NotBlank @Size String recipient
+  +@Size String subject
+  +String content
+}
+
+class UpdateNotificationRequest <<DTO：更新請求>> {
+  +@Size String subject
+  +String content
+}
+
+class NotificationResponse <<DTO：API 回應>> {
+  +Long id
+  +NotificationType type
+  +String recipient
+  +String subject
+  +String content
+  +Instant createdAt / updatedAt
+  +{static} from(Notification)
+}
+
+class NotificationMessage <<DTO：MQ 訊息格式>> {
+  +Long id / type / recipient / subject / content
+  +{static} from(Notification)
+}
+
+class NotificationController <<控制器：對應 5 個端點>> {
+  +create() : 201
+  +getById() : 200 / 404
+  +recent() : 200
+  +update() : 200 / 404
+  +delete() : 204 / 404
+}
+
+class NotificationService <<服務：編排 DB+快取+MQ>> {
+  +create(req) : Notification
+  +getById(id) : Notification
+  +recent() : List<Notification>
+  +update(id, req) : Notification
+  +delete(id) : void
+  -validateRecipient(type, recipient) : 依類型驗證收件人
+}
+
+class NotificationRepository <<資料存取：JdbcTemplate>> {
+  +insert() / findById() / findRecent()
+  +existsById() / updateSubjectContent() / deleteById()
+}
+
+class NotificationCacheService <<快取：含降級保護>> {
+  +putById() / getById() / evict()
+  +pushRecent() / evictRecent() / replaceRecent() / getRecent()
+  -safeRun()/safeGet()：Redis 壞掉時降級為「未命中 / 不執行」
+}
+
+class NotificationProducer <<訊息發送：log-and-continue>> {
+  +send(NotificationMessage)
+}
+
+class GlobalExceptionHandler <<@RestControllerAdvice 統一錯誤>> {
+  +404 NotFound / 400 InvalidInput
+  +400 壞 JSON / 500 未預期（不洩漏堆疊）
+}
+class NotFoundException <<例外：對應 404>>
+class RedisConfig <<@Configuration>>
+class RocketMQConfig <<@Configuration>>
+
+NotificationController --> NotificationService
+NotificationController ..> CreateNotificationRequest
+NotificationController ..> UpdateNotificationRequest
+NotificationController ..> NotificationResponse
+NotificationService --> NotificationRepository
+NotificationService --> NotificationCacheService
+NotificationService --> NotificationProducer
+NotificationService ..> NotFoundException
+NotificationService ..> NotificationMessage
+Notification --> NotificationType
+NotificationResponse ..> Notification
+NotificationMessage ..> Notification
+RedisConfig ..> NotificationCacheService : 提供 RedisTemplate
+RocketMQConfig ..> NotificationProducer : 提供 DefaultMQProducer
+GlobalExceptionHandler ..> NotFoundException
+@enduml

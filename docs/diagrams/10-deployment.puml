@@ -1,0 +1,32 @@
+@startuml deployment
+title 通知服務 — 部署圖（docker-compose）
+
+skinparam shadowing false
+skinparam defaultFontName "PingFang TC"
+
+node "開發者主機 / 伺服器" {
+  artifact "Spring Boot App\n(demo.jar, 8080)" as app
+
+  node "Docker（compose 網路：homework-backend-1_default）" {
+    database "mysql:8.0\n:3306\ntaskdb" as mysql
+    database "redis:7\n:6379" as redis
+    node "RocketMQ" {
+      component "namesrv\n:9876" as ns
+      component "broker\n:10911" as br
+      component "console\n:8088" as console
+    }
+  }
+}
+
+app --> mysql : JDBC（持久化）
+app --> redis : 快取
+app --> ns : 取得 broker 位址
+app --> br : 發送訊息
+br --> ns : 註冊
+console --> ns : 監控
+
+note bottom of app
+  連線設定外部化於 application.yaml：
+  spring.datasource.url / spring.data.redis.host / rocketmq.name-server
+end note
+@enduml

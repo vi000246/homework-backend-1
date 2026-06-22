@@ -1,0 +1,33 @@
+@startuml activity-create
+title 建立通知 — 活動流程圖（含驗證與失敗處理）
+
+skinparam shadowing false
+skinparam defaultFontName "PingFang TC"
+
+start
+:收到 POST /notifications;
+if (欄位驗證通過？\n(type/recipient 非空、長度合法)) then (否)
+  :回傳 400 INVALID_INPUT;
+  stop
+else (是)
+endif
+if (type 是 email/sms\n且收件人格式正確？) then (否)
+  :回傳 400 INVALID_INPUT;
+  stop
+else (是)
+endif
+
+:寫入 MySQL（INSERT，取回 id）;
+note right: 這是唯一硬性步驟，失敗 → 500
+
+partition "盡力而為（失敗不影響回應）" {
+  :寫入 Redis by-id 快取;
+  note right: Redis 壞掉 → 記 log、不執行
+  :LPUSH + LTRIM 最近清單;
+  :發送 RocketMQ（逾時 3 秒）;
+  note right: MQ 壞掉 → 記 log 並繼續
+}
+
+:回傳 201 Created（含 id）;
+stop
+@enduml

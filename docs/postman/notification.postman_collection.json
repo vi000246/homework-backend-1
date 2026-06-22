@@ -1,0 +1,98 @@
+{
+  "info": {
+    "name": "Notification Service",
+    "description": "通知服務 API — 5 個端點 + 錯誤情境。變數 baseUrl 預設 http://localhost:8080。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "id", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "1. Create notification (201)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/notifications", "host": ["{{baseUrl}}"], "path": ["notifications"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"email\",\n  \"recipient\": \"user@example.com\",\n  \"subject\": \"Welcome!\",\n  \"content\": \"Thanks for signing up!\"\n}"
+        }
+      },
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('status 201', () => pm.response.to.have.status(201));",
+          "pm.collectionVariables.set('id', pm.response.json().id);"
+        ] } }
+      ]
+    },
+    {
+      "name": "2. Get by id (200)",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/notifications/{{id}}", "host": ["{{baseUrl}}"], "path": ["notifications", "{{id}}"] }
+      },
+      "event": [
+        { "listen": "test", "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] } }
+      ]
+    },
+    {
+      "name": "3. Get recent (200)",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/notifications/recent", "host": ["{{baseUrl}}"], "path": ["notifications", "recent"] }
+      },
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('status 200', () => pm.response.to.have.status(200));",
+          "pm.test('array <= 10', () => pm.expect(pm.response.json().length).to.be.at.most(10));"
+        ] } }
+      ]
+    },
+    {
+      "name": "4. Update (200)",
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/notifications/{{id}}", "host": ["{{baseUrl}}"], "path": ["notifications", "{{id}}"] },
+        "body": { "mode": "raw", "raw": "{\n  \"subject\": \"Updated subject\",\n  \"content\": \"Updated content\"\n}" }
+      },
+      "event": [
+        { "listen": "test", "script": { "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"] } }
+      ]
+    },
+    {
+      "name": "5. Delete (204)",
+      "request": {
+        "method": "DELETE",
+        "url": { "raw": "{{baseUrl}}/notifications/{{id}}", "host": ["{{baseUrl}}"], "path": ["notifications", "{{id}}"] }
+      },
+      "event": [
+        { "listen": "test", "script": { "exec": ["pm.test('status 204', () => pm.response.to.have.status(204));"] } }
+      ]
+    },
+    {
+      "name": "6. Get missing (404)",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/notifications/999999", "host": ["{{baseUrl}}"], "path": ["notifications", "999999"] }
+      },
+      "event": [
+        { "listen": "test", "script": { "exec": ["pm.test('status 404', () => pm.response.to.have.status(404));"] } }
+      ]
+    },
+    {
+      "name": "7. Create invalid type (400)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/notifications", "host": ["{{baseUrl}}"], "path": ["notifications"] },
+        "body": { "mode": "raw", "raw": "{\n  \"type\": \"fax\",\n  \"recipient\": \"user@example.com\"\n}" }
+      },
+      "event": [
+        { "listen": "test", "script": { "exec": ["pm.test('status 400', () => pm.response.to.have.status(400));"] } }
+      ]
+    }
+  ]
+}

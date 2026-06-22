@@ -1,0 +1,37 @@
+@startuml seq-recent
+title GET /notifications/recent — 查最近 10 筆（Redis 優先，DB 重建）
+
+skinparam shadowing false
+skinparam defaultFontName "PingFang TC"
+autonumber
+
+actor "用戶端" as Client
+participant "Controller" as C
+participant "Service" as S
+participant "CacheService" as Cache
+database "Redis" as Redis
+participant "Repository" as R
+database "MySQL" as DB
+
+Client -> C : GET /notifications/recent
+C -> S : recent()
+S -> Cache : getRecent()
+Cache -> Redis : LRANGE notifications:recent 0..9
+alt 快取有資料
+  Redis --> Cache : 最近清單
+  Cache --> S : List（非空）
+  S --> C : List
+  C --> Client : 200 OK（最多 10 筆）
+else 快取為空 / 冷啟動 / Redis 壞掉
+  Redis --> Cache : 空
+  Cache --> S : 空 List
+  S -> R : findRecent(10)
+  R -> DB : SELECT ... ORDER BY created_at DESC LIMIT 10
+  DB --> R : 最近 10 筆
+  R --> S : List
+  S -> Cache : replaceRecent(list)（重建快取）
+  Cache -> Redis : DEL + LPUSH × N + LTRIM
+  S --> C : List
+  C --> Client : 200 OK
+end
+@enduml

@@ -1,0 +1,43 @@
+@startuml architecture
+title 通知服務 — 元件 / 分層架構圖
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName "PingFang TC"
+
+actor "API 用戶端" as client
+
+package "Spring Boot 應用程式 (com.example.demo)" {
+  [NotificationController\n（控制器層）] as ctrl
+  [GlobalExceptionHandler\n（統一例外處理）] as geh
+  [NotificationService\n（服務 / 商業邏輯層）] as svc
+  [NotificationRepository\n（資料存取層）] as repo
+  [NotificationCacheService\n（快取層）] as cache
+  [NotificationProducer\n（訊息發送）] as prod
+  [RedisConfig\n（設定）] as rcfg
+  [RocketMQConfig\n（設定）] as mqcfg
+}
+
+database "MySQL\n(taskdb)\n真相來源" as mysql
+database "Redis\n快取加速器" as redis
+queue "RocketMQ\n(notification-topic)" as mq
+
+client --> ctrl : HTTP REST
+ctrl ..> geh : 例外 → 4xx / 5xx
+ctrl --> svc : 呼叫
+svc --> repo : JdbcTemplate
+svc --> cache : 旁路快取 (cache-aside)
+svc --> prod : 盡力發送
+repo --> mysql : 參數化 SQL
+cache --> redis : by-id + 最近 10 筆
+prod --> mq : NotificationMessage
+rcfg ..> cache : 提供 RedisTemplate
+mqcfg ..> prod : 提供 DefaultMQProducer
+
+note right of svc
+  **依賴分級**
+  MySQL = 硬性依賴（壞了就 500）
+  Redis + RocketMQ = 軟性依賴
+  （壞了自動降級，不影響核心寫入）
+end note
+@enduml

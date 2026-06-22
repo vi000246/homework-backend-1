@@ -1,0 +1,28 @@
+@startuml er-diagram
+title 通知服務 — 實體關聯圖（MySQL：taskdb）
+
+skinparam shadowing false
+skinparam defaultFontName "PingFang TC"
+hide circle
+skinparam linetype ortho
+
+entity "notification（通知）" as n {
+  * id : BIGINT <<主鍵, 自增>>
+  --
+  * type : VARCHAR(16)        <<email 或 sms>>
+  * recipient : VARCHAR(255)  <<收件人>>
+    subject : VARCHAR(255)    <<主旨>>
+    content : TEXT            <<內容>>
+  * created_at : DATETIME     <<建立時間, 預設 CURRENT_TIMESTAMP>>
+  * updated_at : DATETIME     <<更新時間, on update 自動>>
+  --
+  索引 idx_created_at (created_at)
+}
+
+note bottom of n
+  單表設計（符合作業範圍）。
+  Engine = InnoDB，charset = utf8mb4。
+  由 init.sql 在 MySQL 首次啟動時建立。
+  created_at 索引：加速 /recent 的 ORDER BY created_at DESC。
+end note
+@enduml

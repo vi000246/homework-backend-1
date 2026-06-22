@@ -1,0 +1,43 @@
+@startuml seq-update
+title PUT /notifications/{id} — 更新 subject/content
+
+skinparam shadowing false
+skinparam defaultFontName "PingFang TC"
+autonumber
+
+actor "用戶端" as Client
+participant "Controller" as C
+participant "Service" as S
+participant "Repository" as R
+database "MySQL" as DB
+participant "CacheService" as Cache
+database "Redis" as Redis
+
+Client -> C : PUT /notifications/{id}\n{subject, content}
+C -> S : update(id, req)
+S -> R : existsById(id)
+R -> DB : SELECT COUNT(*) WHERE id = ?
+alt 不存在
+  DB --> R : 0
+  R --> S : false
+  S -> S : 拋 NotFoundException
+  S --> C : 例外
+  C --> Client : 404 NOT_FOUND
+else 存在
+  DB --> R : 1
+  R --> S : true
+  S -> R : updateSubjectContent(id, subject, content)
+  R -> DB : UPDATE notification SET ...
+  S -> R : findById(id)
+  R -> DB : SELECT（取回最新值）
+  DB --> R : notification（最新）
+  R --> S : notification
+  S -> Cache : putById(fresh)（刷新 by-id 快取）
+  Cache -> Redis : SET notification:{id}
+  S -> Cache : evictRecent()（讓最近清單失效）
+  Cache -> Redis : DEL notifications:recent
+  note right of S : 最近清單可能含舊主旨\n→ 下次讀取時由 DB 重建
+  S --> C : notification
+  C --> Client : 200 OK
+end
+@enduml

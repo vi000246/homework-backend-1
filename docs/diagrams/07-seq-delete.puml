@@ -1,0 +1,39 @@
+@startuml seq-delete
+title DELETE /notifications/{id} — 刪除通知
+
+skinparam shadowing false
+skinparam defaultFontName "PingFang TC"
+autonumber
+
+actor "用戶端" as Client
+participant "Controller" as C
+participant "Service" as S
+participant "Repository" as R
+database "MySQL" as DB
+participant "CacheService" as Cache
+database "Redis" as Redis
+
+Client -> C : DELETE /notifications/{id}
+C -> S : delete(id)
+S -> R : existsById(id)
+R -> DB : SELECT COUNT(*) WHERE id = ?
+alt 不存在
+  DB --> R : 0
+  R --> S : false
+  S -> S : 拋 NotFoundException
+  S --> C : 例外
+  C --> Client : 404 NOT_FOUND
+else 存在
+  DB --> R : 1
+  R --> S : true
+  S -> R : deleteById(id)
+  R -> DB : DELETE FROM notification WHERE id = ?
+  S -> Cache : evict(id)（移除 by-id 快取）
+  Cache -> Redis : DEL notification:{id}
+  S -> Cache : evictRecent()（讓最近清單失效）
+  Cache -> Redis : DEL notifications:recent
+  note right of S : 已刪除的資料不可殘留在最近清單\n→ 下次讀取由 DB 重建
+  S --> C : void
+  C --> Client : 204 No Content
+end
+@enduml

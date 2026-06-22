@@ -1,0 +1,42 @@
+@startuml seq-create
+title POST /notifications — 建立通知（寫入 + 快取 + 發送）
+
+skinparam shadowing false
+skinparam defaultFontName "PingFang TC"
+autonumber
+
+actor "用戶端" as Client
+participant "Controller" as C
+participant "Service" as S
+participant "Repository" as R
+database "MySQL" as DB
+participant "CacheService" as Cache
+database "Redis" as Redis
+participant "Producer" as P
+queue "RocketMQ" as MQ
+
+Client -> C : POST /notifications\n{type, recipient, subject, content}
+C -> C : @Valid 欄位驗證
+alt 驗證失敗（缺欄位 / 過長）
+  C --> Client : 400 INVALID_INPUT
+end
+C -> S : create(req)
+S -> S : 解析 type 列舉\n依類型驗證收件人格式
+alt type 錯誤 / 收件人格式錯
+  S --> C : IllegalArgumentException
+  C --> Client : 400 INVALID_INPUT
+end
+S -> R : insert(notification)
+R -> DB : INSERT（取回自增 id）
+DB --> R : 產生的 id
+R --> S : notification(id)
+S -> Cache : putById(n)
+Cache -> Redis : SET notification:{id}（含 TTL）
+S -> Cache : pushRecent(n)
+Cache -> Redis : LPUSH + LTRIM 0..9
+S -> P : send(訊息)
+P -> MQ : 送到 notification-topic（逾時上限 3 秒）
+note right of P : 失敗只記 log 並繼續\n（DB 已寫入，不回滾）
+S --> C : notification
+C --> Client : 201 Created {id, ...}
+@enduml
