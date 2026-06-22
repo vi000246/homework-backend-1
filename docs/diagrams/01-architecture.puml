@@ -3,7 +3,7 @@ title 通知服務 — 元件 / 分層架構圖
 
 skinparam componentStyle rectangle
 skinparam shadowing false
-skinparam defaultFontName "PingFang TC"
+skinparam defaultFontName "Noto Sans CJK TC"
 
 actor "API 用戶端" as client
 

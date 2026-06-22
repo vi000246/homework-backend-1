@@ -2,7 +2,7 @@
 title POST /notifications — 建立通知（寫入 + 快取 + 發送）
 
 skinparam shadowing false
-skinparam defaultFontName "PingFang TC"
+skinparam defaultFontName "Noto Sans CJK TC"
 autonumber
 
 actor "用戶端" as Client

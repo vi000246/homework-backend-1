@@ -2,7 +2,7 @@
 title DELETE /notifications/{id} — 刪除通知
 
 skinparam shadowing false
-skinparam defaultFontName "PingFang TC"
+skinparam defaultFontName "Noto Sans CJK TC"
 autonumber
 
 actor "用戶端" as Client

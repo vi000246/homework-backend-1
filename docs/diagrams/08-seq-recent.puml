@@ -2,7 +2,7 @@
 title GET /notifications/recent — 查最近 10 筆（Redis 優先，DB 重建）
 
 skinparam shadowing false
-skinparam defaultFontName "PingFang TC"
+skinparam defaultFontName "Noto Sans CJK TC"
 autonumber
 
 actor "用戶端" as Client

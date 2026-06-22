@@ -2,7 +2,7 @@
 title 通知服務 — 實體關聯圖（MySQL：taskdb）
 
 skinparam shadowing false
-skinparam defaultFontName "PingFang TC"
+skinparam defaultFontName "Noto Sans CJK TC"
 hide circle
 skinparam linetype ortho
 

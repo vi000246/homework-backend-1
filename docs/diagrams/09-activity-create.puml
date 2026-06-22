@@ -2,7 +2,7 @@
 title 建立通知 — 活動流程圖（含驗證與失敗處理）
 
 skinparam shadowing false
-skinparam defaultFontName "PingFang TC"
+skinparam defaultFontName "Noto Sans CJK TC"
 
 start
 :收到 POST /notifications;

@@ -2,7 +2,7 @@
 title GET /notifications/{id} — 依 ID 查詢（旁路快取 Cache-Aside）
 
 skinparam shadowing false
-skinparam defaultFontName "PingFang TC"
+skinparam defaultFontName "Noto Sans CJK TC"
 autonumber
 
 actor "用戶端" as Client

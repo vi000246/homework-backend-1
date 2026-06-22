@@ -3,7 +3,7 @@ title 通知服務 — 類別圖（各層職責）
 
 skinparam shadowing false
 skinparam classAttributeIconSize 0
-skinparam defaultFontName "PingFang TC"
+skinparam defaultFontName "Noto Sans CJK TC"
 
 enum NotificationType <<列舉：通知類型>> {
   EMAIL("email")

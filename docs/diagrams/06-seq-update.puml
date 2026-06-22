@@ -2,7 +2,7 @@
 title PUT /notifications/{id} — 更新 subject/content
 
 skinparam shadowing false
-skinparam defaultFontName "PingFang TC"
+skinparam defaultFontName "Noto Sans CJK TC"
 autonumber
 
 actor "用戶端" as Client

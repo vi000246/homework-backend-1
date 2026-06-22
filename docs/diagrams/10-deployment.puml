@@ -2,7 +2,7 @@
 title 通知服務 — 部署圖（docker-compose）
 
 skinparam shadowing false
-skinparam defaultFontName "PingFang TC"
+skinparam defaultFontName "Noto Sans CJK TC"
 
 node "開發者主機 / 伺服器" {
   artifact "Spring Boot App\n(demo.jar, 8080)" as app
