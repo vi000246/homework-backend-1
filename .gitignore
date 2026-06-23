@@ -1,3 +1,6 @@
+# Personal interview notes — keep local, never push
+docs/面試重點.md
+
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
