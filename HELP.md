@@ -25,12 +25,21 @@ The `notification` table is created automatically by `init.sql` on first MySQL s
 
 ## 2. Build & test
 ```bash
-./mvnw test          # 23 unit/web-layer tests — runs WITHOUT infra (context-load is resilient)
+./mvnw test          # 32 unit/web-layer tests — runs WITHOUT infra (context-load is resilient)
+./mvnw verify        # + Testcontainers integration tests (real MySQL+Redis) — needs Docker
 ./mvnw spring-boot:run
 ```
-> Tests do **not** require Docker: service tests use Mockito, the controller test uses `@WebMvcTest`,
-> and the full-context test loads with infra absent (DB pool + MQ producer + Redis all init lazily /
-> non-fatally). Start `docker-compose` only for the manual smoke test below.
+> `mvn test` does **not** require Docker: service/producer/cache tests use Mockito, the controller test
+> uses `@WebMvcTest`, and the full-context test loads with infra absent (DB pool + MQ producer + Redis
+> all init lazily / non-fatally). Integration tests (`*IT`, run by `mvn verify`) spin up real MySQL +
+> Redis via Testcontainers.
+> Coverage report after `mvn test`: open `target/site/jacoco/index.html`.
+
+### Optimistic concurrency (optional, on PUT)
+`PUT /notifications/{id}` accepts an optional `If-Match: "<version>"` header. Each response carries a
+`version`. If the supplied version is stale (someone else updated first), the API returns **409
+VERSION_CONFLICT** instead of silently overwriting (lost-update prevention). Without `If-Match`, the
+update is unconditional (backward compatible).
 
 ## 3. API smoke test (curl)
 ```bash

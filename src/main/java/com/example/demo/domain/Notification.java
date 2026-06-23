@@ -10,6 +10,7 @@ public class Notification {
     private String content;
     private Instant createdAt;
     private Instant updatedAt;
+    private Long version;          // optimistic-lock counter
 
     public Notification() {
     }
@@ -68,5 +69,13 @@ public class Notification {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

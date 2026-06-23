@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.domain.Notification;
 import com.example.demo.domain.NotificationType;
+import com.example.demo.exception.ConflictException;
 import com.example.demo.exception.NotFoundException;
 import com.example.demo.service.NotificationService;
 import org.junit.jupiter.api.Test;
@@ -92,10 +93,20 @@ class NotificationControllerTest {
 
     @Test
     void update_missing_returns404() throws Exception {               // AC-7
-        when(service.update(eq(999L), any())).thenThrow(new NotFoundException("not found"));
+        when(service.update(eq(999L), any(), any())).thenThrow(new NotFoundException("not found"));
         mvc.perform(put("/notifications/999").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"subject\":\"x\",\"content\":\"y\"}"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void update_versionConflict_returns409() throws Exception {        // optimistic lock via If-Match
+        when(service.update(eq(1L), any(), eq(2L)))
+                .thenThrow(new ConflictException("version conflict"));
+        mvc.perform(put("/notifications/1").contentType(MediaType.APPLICATION_JSON)
+                        .header("If-Match", "\"2\"")
+                        .content("{\"subject\":\"x\",\"content\":\"y\"}"))
+                .andExpect(status().isConflict());
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.example.demo.domain.NotificationType;
 import com.example.demo.dto.CreateNotificationRequest;
 import com.example.demo.dto.NotificationMessage;
 import com.example.demo.dto.UpdateNotificationRequest;
+import com.example.demo.exception.ConflictException;
 import com.example.demo.exception.NotFoundException;
 import com.example.demo.messaging.NotificationProducer;
 import com.example.demo.repository.NotificationRepository;
@@ -65,11 +66,24 @@ public class NotificationService {
         return fromDb;
     }
 
-    public Notification update(Long id, UpdateNotificationRequest req) {
+    /**
+     * Update subject/content. When {@code expectedVersion} is non-null (client sent If-Match), the
+     * write is guarded by an optimistic-lock version check: a concurrent modification yields 409
+     * instead of silently overwriting the other writer's change (lost-update prevention).
+     */
+    public Notification update(Long id, UpdateNotificationRequest req, Long expectedVersion) {
         if (!repo.existsById(id)) {
             throw new NotFoundException("notification " + id + " not found");
         }
-        repo.updateSubjectContent(id, req.getSubject(), req.getContent());
+        int rows = repo.update(id, req.getSubject(), req.getContent(), expectedVersion);
+        if (rows == 0) {
+            // Conditional update matched no row: either a version conflict, or the row was deleted concurrently.
+            if (expectedVersion != null && repo.existsById(id)) {
+                throw new ConflictException(
+                        "notification " + id + " was modified concurrently (expected version " + expectedVersion + ")");
+            }
+            throw new NotFoundException("notification " + id + " not found");
+        }
         Notification fresh = repo.findById(id)
                 .orElseThrow(() -> new NotFoundException("notification " + id + " not found"));
         cache.putById(fresh);        // refresh by-id

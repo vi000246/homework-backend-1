@@ -11,6 +11,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -21,6 +24,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -126,5 +133,51 @@ class NotificationEndToEndIT {
         // GET after delete — 404
         assertEquals(HttpStatus.NOT_FOUND,
                 rest.getForEntity("/notifications/" + id, Map.class).getStatusCode());
+    }
+
+    @Test
+    void concurrentCreates_keepRecentListAtMost10() throws Exception {
+        int n = 30;
+        ExecutorService pool = Executors.newFixedThreadPool(8);
+        CountDownLatch done = new CountDownLatch(n);
+        for (int i = 0; i < n; i++) {
+            final int k = i;
+            pool.submit(() -> {
+                try {
+                    rest.postForEntity("/notifications", emailBody("c" + k), Map.class);
+                } finally {
+                    done.countDown();
+                }
+            });
+        }
+        assertTrue(done.await(30, TimeUnit.SECONDS));
+        pool.shutdown();
+
+        ResponseEntity<java.util.List> recent = rest.getForEntity("/notifications/recent", java.util.List.class);
+        assertEquals(HttpStatus.OK, recent.getStatusCode());
+        // atomic LPUSH+LTRIM must keep the list bounded even under concurrent writers
+        assertTrue(recent.getBody().size() <= 10,
+                "recent list must stay <= 10 under concurrency, was " + recent.getBody().size());
+    }
+
+    @Test
+    void optimisticLock_staleIfMatch_returns409() {
+        Long id = ((Number) rest.postForEntity("/notifications", emailBody("v0"), Map.class)
+                .getBody().get("id")).longValue();
+
+        // current version (0) from the response body
+        Number version = (Number) rest.getForEntity("/notifications/" + id, Map.class).getBody().get("version");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("If-Match", "\"" + version + "\"");
+        HttpEntity<Map<String, String>> req =
+                new HttpEntity<>(Map.of("subject", "first", "content", "b"), headers);
+
+        // first conditional update with the correct version → 200 (version becomes 1)
+        assertEquals(HttpStatus.OK, rest.exchange("/notifications/" + id, HttpMethod.PUT, req, Map.class).getStatusCode());
+
+        // second update reusing the now-STALE version header → 409 Conflict (lost-update prevented)
+        assertEquals(HttpStatus.CONFLICT,
+                rest.exchange("/notifications/" + id, HttpMethod.PUT, req, Map.class).getStatusCode());
     }
 }

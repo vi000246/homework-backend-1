@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,8 +46,20 @@ public class NotificationController {
     }
 
     @PutMapping("/{id}")
-    public NotificationResponse update(@PathVariable Long id, @Valid @RequestBody UpdateNotificationRequest req) {
-        return NotificationResponse.from(service.update(id, req));
+    public NotificationResponse update(@PathVariable Long id,
+                                       @Valid @RequestBody UpdateNotificationRequest req,
+                                       @RequestHeader(value = "If-Match", required = false) String ifMatch) {
+        // Optional optimistic concurrency: If-Match: "<version>" guards against lost updates.
+        // Absent → unconditional update (backward compatible with the assignment's contract).
+        return NotificationResponse.from(service.update(id, req, parseIfMatch(ifMatch)));
+    }
+
+    private static Long parseIfMatch(String ifMatch) {
+        if (ifMatch == null || ifMatch.isBlank()) {
+            return null;
+        }
+        String v = ifMatch.replace("W/", "").replace("\"", "").trim();
+        return Long.parseLong(v);   // non-numeric → NumberFormatException → 400 INVALID_INPUT
     }
 
     @DeleteMapping("/{id}")

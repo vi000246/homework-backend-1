@@ -33,7 +33,7 @@ R --> S : notification(id)
 S -> Cache : putById(n)
 Cache -> Redis : SET notification:{id}（含 TTL）
 S -> Cache : pushRecent(n)
-Cache -> Redis : LPUSH + LTRIM 0..9
+Cache -> Redis : MULTI: LPUSH + LTRIM 0..9（原子，防並發超量）
 S -> P : send(訊息)
 P -> MQ : 送到 notification-topic（逾時上限 3 秒）
 note right of P : 失敗只記 log 並繼續\n（DB 已寫入，不回滾）

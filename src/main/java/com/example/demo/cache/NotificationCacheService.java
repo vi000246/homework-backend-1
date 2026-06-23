@@ -4,7 +4,9 @@ import com.example.demo.domain.Notification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -67,12 +69,22 @@ public class NotificationCacheService {
         safeRun("evict", () -> redis.delete(KEY_BY_ID + id));
     }
 
-    /** Push newest to front, trim to recentSize. */
+    /**
+     * Push newest to front, trim to recentSize — executed in a single MULTI/EXEC transaction so
+     * LPUSH and LTRIM are atomic. Without this, concurrent writers could interleave between the two
+     * commands and momentarily leave the list longer than recentSize (race condition).
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void pushRecent(Notification n) {
-        safeRun("pushRecent", () -> {
-            redis.opsForList().leftPush(KEY_RECENT, n);
-            redis.opsForList().trim(KEY_RECENT, 0, recentSize - 1);
-        });
+        safeRun("pushRecent", () -> redis.execute(new SessionCallback<Object>() {
+            @Override
+            public Object execute(RedisOperations operations) {
+                operations.multi();
+                operations.opsForList().leftPush(KEY_RECENT, n);
+                operations.opsForList().trim(KEY_RECENT, 0, recentSize - 1);
+                return operations.exec();
+            }
+        }));
     }
 
     /** Invalidate the recent list so the next read rebuilds it from DB (used on update/delete). */
@@ -80,15 +92,21 @@ public class NotificationCacheService {
         safeRun("evictRecent", () -> redis.delete(KEY_RECENT));
     }
 
-    /** Replace the recent list wholesale (used to rebuild from DB). */
+    /** Replace the recent list wholesale (used to rebuild from DB) — atomic via MULTI/EXEC. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void replaceRecent(List<Notification> notifications) {
-        safeRun("replaceRecent", () -> {
-            redis.delete(KEY_RECENT);
-            for (int i = notifications.size() - 1; i >= 0; i--) {   // oldest first so newest ends at head
-                redis.opsForList().leftPush(KEY_RECENT, notifications.get(i));
+        safeRun("replaceRecent", () -> redis.execute(new SessionCallback<Object>() {
+            @Override
+            public Object execute(RedisOperations operations) {
+                operations.multi();
+                operations.delete(KEY_RECENT);
+                for (int i = notifications.size() - 1; i >= 0; i--) {   // oldest first so newest ends at head
+                    operations.opsForList().leftPush(KEY_RECENT, notifications.get(i));
+                }
+                operations.opsForList().trim(KEY_RECENT, 0, recentSize - 1);
+                return operations.exec();
             }
-            redis.opsForList().trim(KEY_RECENT, 0, recentSize - 1);
-        });
+        }));
     }
 
     @SuppressWarnings("unchecked")

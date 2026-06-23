@@ -15,6 +15,7 @@ entity "notification（通知）" as n {
     content : TEXT            <<內容>>
   * created_at : DATETIME     <<建立時間, 預設 CURRENT_TIMESTAMP>>
   * updated_at : DATETIME     <<更新時間, on update 自動>>
+  * version : BIGINT          <<樂觀鎖計數, 預設 0>>
   --
   索引 idx_created_at (created_at)
 }

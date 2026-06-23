@@ -13,6 +13,7 @@ public class NotificationResponse {
     public String content;
     public Instant createdAt;
     public Instant updatedAt;
+    public Long version;
 
     public static NotificationResponse from(Notification n) {
         NotificationResponse r = new NotificationResponse();
@@ -23,6 +24,7 @@ public class NotificationResponse {
         r.content = n.getContent();
         r.createdAt = n.getCreatedAt();
         r.updatedAt = n.getUpdatedAt();
+        r.version = n.getVersion();
         return r;
     }
 }

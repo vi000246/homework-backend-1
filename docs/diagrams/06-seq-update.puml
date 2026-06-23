@@ -1,5 +1,5 @@
 @startuml seq-update
-title PUT /notifications/{id} — 更新 subject/content
+title PUT /notifications/{id} — 更新 subject/content（含樂觀鎖）
 
 skinparam shadowing false
 skinparam defaultFontName "Noto Sans CJK TC"
@@ -13,31 +13,39 @@ database "MySQL" as DB
 participant "CacheService" as Cache
 database "Redis" as Redis
 
-Client -> C : PUT /notifications/{id}\n{subject, content}
-C -> S : update(id, req)
+Client -> C : PUT /notifications/{id}\n{subject, content}\n(選填 If-Match: "version")
+C -> C : 解析 If-Match → expectedVersion（可為 null）
+C -> S : update(id, req, expectedVersion)
 S -> R : existsById(id)
 R -> DB : SELECT COUNT(*) WHERE id = ?
 alt 不存在
   DB --> R : 0
-  R --> S : false
-  S -> S : 拋 NotFoundException
-  S --> C : 例外
+  S --> C : NotFoundException
   C --> Client : 404 NOT_FOUND
 else 存在
   DB --> R : 1
-  R --> S : true
-  S -> R : updateSubjectContent(id, subject, content)
-  R -> DB : UPDATE notification SET ...
-  S -> R : findById(id)
-  R -> DB : SELECT（取回最新值）
-  DB --> R : notification（最新）
-  R --> S : notification
-  S -> Cache : putById(fresh)（刷新 by-id 快取）
-  Cache -> Redis : SET notification:{id}
-  S -> Cache : evictRecent()（讓最近清單失效）
-  Cache -> Redis : DEL notifications:recent
-  note right of S : 最近清單可能含舊主旨\n→ 下次讀取時由 DB 重建
-  S --> C : notification
-  C --> Client : 200 OK
+  S -> R : update(id, subject, content, expectedVersion)
+  note right of R
+    expectedVersion = null → 無條件更新
+    否則 WHERE id=? AND version=?
+    並 version = version + 1
+  end note
+  R -> DB : UPDATE ... (條件式)
+  DB --> R : 受影響列數 rows
+  alt rows = 0 且有帶 expectedVersion（版本不符）
+    S --> C : ConflictException
+    C --> Client : 409 VERSION_CONFLICT
+    note right of S : 防止 lost update：\n他人已改過，拒絕覆蓋
+  else rows = 1（更新成功）
+    S -> R : findById(id)
+    R -> DB : SELECT（取回最新值 + 新 version）
+    DB --> R : notification
+    S -> Cache : putById(fresh)（刷新 by-id）
+    Cache -> Redis : SET notification:{id}
+    S -> Cache : evictRecent()（最近清單失效）
+    Cache -> Redis : DEL notifications:recent
+    S --> C : notification
+    C --> Client : 200 OK（body 含新 version）
+  end
 end
 @enduml

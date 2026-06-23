@@ -89,14 +89,26 @@ class NotificationRepositoryIT {
     }
 
     @Test
-    void updateSubjectContent_persistsChanges() {
+    void update_persistsChanges_andBumpsVersion() {
         Notification saved = repo.insert(newNotification("c@e.com", "old"));
-        int rows = repo.updateSubjectContent(saved.getId(), "newSubject", "newContent");
+        assertEquals(0L, saved.getVersion());
+        int rows = repo.update(saved.getId(), "newSubject", "newContent", null);
         assertEquals(1, rows);
 
         Notification reloaded = repo.findById(saved.getId()).orElseThrow();
         assertEquals("newSubject", reloaded.getSubject());
         assertEquals("newContent", reloaded.getContent());
+        assertEquals(1L, reloaded.getVersion());   // version incremented
+    }
+
+    @Test
+    void update_withStaleVersion_updatesNoRow() {
+        Notification saved = repo.insert(newNotification("e@e.com", "v0"));   // version 0
+        // Pretend another writer already bumped it: expecting version 5 must match nothing.
+        int rows = repo.update(saved.getId(), "x", "y", 5L);
+        assertEquals(0, rows);                                                 // optimistic-lock guard
+        // unchanged
+        assertEquals("v0", repo.findById(saved.getId()).orElseThrow().getSubject());
     }
 
     @Test

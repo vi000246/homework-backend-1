@@ -5,6 +5,7 @@ import com.example.demo.domain.Notification;
 import com.example.demo.domain.NotificationType;
 import com.example.demo.dto.CreateNotificationRequest;
 import com.example.demo.dto.UpdateNotificationRequest;
+import com.example.demo.exception.ConflictException;
 import com.example.demo.exception.NotFoundException;
 import com.example.demo.messaging.NotificationProducer;
 import com.example.demo.repository.NotificationRepository;
@@ -121,12 +122,13 @@ class NotificationServiceTest {
     @Test
     void update_refreshesCacheAndInvalidatesRecent() {   // AC-6 (+ recent staleness fix)
         when(repo.existsById(5L)).thenReturn(true);
+        when(repo.update(5L, "s2", "c2", null)).thenReturn(1);
         when(repo.findById(5L)).thenReturn(Optional.of(sample(5L)));
         UpdateNotificationRequest req = new UpdateNotificationRequest();
         req.setSubject("s2");
         req.setContent("c2");
-        service.update(5L, req);
-        verify(repo).updateSubjectContent(5L, "s2", "c2");
+        service.update(5L, req, null);
+        verify(repo).update(5L, "s2", "c2", null);
         verify(cache).putById(any());
         verify(cache).evictRecent();                     // recent list must not serve stale subject
     }
@@ -134,7 +136,17 @@ class NotificationServiceTest {
     @Test
     void update_missing_throws404() {                    // AC-7
         when(repo.existsById(9L)).thenReturn(false);
-        assertThrows(NotFoundException.class, () -> service.update(9L, new UpdateNotificationRequest()));
+        assertThrows(NotFoundException.class, () -> service.update(9L, new UpdateNotificationRequest(), null));
+    }
+
+    @Test
+    void update_versionConflict_throwsConflict() {       // optimistic-lock lost-update prevention
+        UpdateNotificationRequest req = new UpdateNotificationRequest();
+        req.setSubject("s2");
+        req.setContent("c2");
+        when(repo.existsById(5L)).thenReturn(true);
+        when(repo.update(5L, "s2", "c2", 3L)).thenReturn(0);   // stored version != 3 → no row updated
+        assertThrows(ConflictException.class, () -> service.update(5L, req, 3L));
     }
 
     @Test

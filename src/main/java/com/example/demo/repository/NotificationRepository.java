@@ -34,6 +34,7 @@ public class NotificationRepository {
         Timestamp u = rs.getTimestamp("updated_at");
         x.setCreatedAt(c == null ? null : c.toInstant());
         x.setUpdatedAt(u == null ? null : u.toInstant());
+        x.setVersion(rs.getLong("version"));
         return x;
     };
 
@@ -55,6 +56,7 @@ public class NotificationRepository {
         n.setId(kh.getKey().longValue());
         n.setCreatedAt(now);
         n.setUpdatedAt(now);
+        n.setVersion(0L);
         return n;
     }
 
@@ -71,10 +73,23 @@ public class NotificationRepository {
         return c != null && c > 0;
     }
 
-    public int updateSubjectContent(Long id, String subject, String content) {
+    /**
+     * Update subject/content and bump the optimistic-lock version.
+     * If {@code expectedVersion} is non-null, the UPDATE only applies when the stored version matches,
+     * so a concurrent writer's change is not silently overwritten (lost-update prevention).
+     *
+     * @return rows affected — 0 means "not found" (unconditional) or "version conflict" (conditional)
+     */
+    public int update(Long id, String subject, String content, Long expectedVersion) {
+        Timestamp now = Timestamp.from(Instant.now());
+        if (expectedVersion == null) {
+            return jdbc.update(
+                    "UPDATE notification SET subject = ?, content = ?, version = version + 1, updated_at = ? WHERE id = ?",
+                    subject, content, now, id);
+        }
         return jdbc.update(
-                "UPDATE notification SET subject = ?, content = ?, updated_at = ? WHERE id = ?",
-                subject, content, Timestamp.from(Instant.now()), id);
+                "UPDATE notification SET subject = ?, content = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
+                subject, content, now, id, expectedVersion);
     }
 
     public int deleteById(Long id) {

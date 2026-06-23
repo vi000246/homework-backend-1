@@ -22,6 +22,12 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", "NOT_FOUND", "message", String.valueOf(e.getMessage())));
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<Map<String, String>> handleConflict(ConflictException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "VERSION_CONFLICT", "message", String.valueOf(e.getMessage())));
+    }
+
     @ExceptionHandler({IllegalArgumentException.class, MethodArgumentNotValidException.class})
     public ResponseEntity<Map<String, String>> handleBadRequest(Exception e) {
         return ResponseEntity.badRequest()
